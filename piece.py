@@ -31,6 +31,7 @@ class Piece(pygame.sprite.Sprite):
 		self.piece = piece
 		self.colour = colour
 		self.coords = coords
+		self.noMoves = 0
 		self.active = False
 
 		self.image = pygame.Surface([SQUAREWIDTH, SQUAREWIDTH])
@@ -97,8 +98,9 @@ class Piece(pygame.sprite.Sprite):
 			for i in range(4):
 				for j in range(1, limit+1):
 					move = (self.coords[0]+(possibleDirections[i][0]*j), (self.coords[1]+(possibleDirections[i][1]*j)))
-					if board[move[0]][move[1]] == " ":
-						moves.append(move)
+					moves.append(move)
+					if board[move[0]][move[1]] != " ":
+						break
 
 		return moves
 
@@ -107,9 +109,22 @@ class Pawn(Piece):
 	def __init__(self, colour, coords):
 		super().__init__("Pawn", colour, coords)
 
+		self.direction = 1 if self.colour == "black" else -1
+
 	def getMoves(self, board):
-		possible = (self.coords[0], self.coords[1] + 1 if self.colour == "black" else self.coords[1] - 1)
-		return [possible]
+		moves = []
+		oneSquare = (self.coords[0], self.coords[1] + self.direction)
+		if board[oneSquare[0]][oneSquare[1]] == " ":
+			moves.append(oneSquare)
+		if board[self.coords[0]-1][self.coords[1]+self.direction] != " ": ## Check if can take diagonally
+			moves.append((self.coords[0]-1, self.coords[1]+self.direction))
+		if board[self.coords[0]+1][self.coords[1]+self.direction] != " ": ## Check if can take diagonally
+			moves.append((self.coords[0]+1, self.coords[1]+self.direction))
+
+		if self.noMoves == 0: ## Check if its the first move, so can move two squares
+			moves.append((self.coords[0], self.coords[1] + 2*self.direction))
+
+		return moves
 
 class Knight(Piece):
 	def __init__(self, colour, coords):
@@ -152,3 +167,11 @@ class King(Piece):
 
 	def getMoves(self, board):
 		return self.getStraightMoves(board, limit=1) + self.getDiagonalMoves(board, limit=1)
+
+	def isInCheck(self, board, pieces):
+		for p in pieces.sprites():
+			for move in p.getMoves(board):
+				#print(p.coords, move)
+				if p.colour != self.colour and self.coords[0] == move[0] and self.coords[1] == move[1]:
+					return True
+		return False
