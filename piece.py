@@ -51,6 +51,10 @@ class Piece(pygame.sprite.Sprite):
 		self.active = False
 		return False
 
+	def resetPiece(self):
+		self.rect.x = self.coords[0] * SQUAREWIDTH
+		self.rect.y = self.coords[1] * SQUAREWIDTH
+
 	def getStraightMoves(self, board, limit=7):
 		""" Gets all possible moves in the horizontal and vertical directions from a given piece.
 		Returns a list of tuples, representing the co-ords which can be moved to."""
@@ -60,14 +64,12 @@ class Piece(pygame.sprite.Sprite):
 		for d in directions:
 			distance = 1
 			nextMove = (self.coords[0] + distance*d[0], self.coords[1] + distance*d[1])
-			nextSquare = board[nextMove[0]][nextMove[1]]
-			while distance < limit + 1 and nextSquare == " " and self.coords[0] + distance*d[0] in range(-1, 9) and self.coords[1] + distance*d[1] in range (-1, 9):
+			while distance < limit + 1 and board.isSquareEmpty(nextMove) and self.coords[0] + distance*d[0] in range(-1, 9) and self.coords[1] + distance*d[1] in range (-1, 9):
 				moves.append(nextMove)
 
 				nextMove = (self.coords[0] + distance*d[0], self.coords[1] + distance*d[1])
-				nextSquare = board[nextMove[0]][nextMove[1]]
 				distance += 1
-			if nextSquare != " ":
+			if not board.isSquareEmpty(nextMove):
 				moves.append(nextMove)
 
 		return moves
@@ -80,26 +82,26 @@ class Piece(pygame.sprite.Sprite):
 		if not limit:
 			for i in range(1, min([7-self.coords[0], 7-self.coords[1]]) + 1):
 				moves.append((self.coords[0] + i, self.coords[1] + i))
-				if board[self.coords[0] + i][self.coords[1] + i] != " ":
+				if not board.isSquareEmpty((self.coords[0] + i, self.coords[1] + i)):
 					break
 			for i in range(1, min([7-self.coords[0], self.coords[1]]) + 1):
 				moves.append((self.coords[0] + i, self.coords[1] - i))
-				if board[self.coords[0] + i][self.coords[1] - i] != " ":
+				if not board.isSquareEmpty((self.coords[0] + i, self.coords[1] - i)):
 					break
 			for i in range(1, min([self.coords[0], self.coords[1]]) + 1):
 				moves.append((self.coords[0] - i, self.coords[1] - i))
-				if board[self.coords[0]- i][self.coords[1] - i] != " ":
+				if not board.isSquareEmpty((self.coords[0] - i, self.coords[1] - i)):
 					break
 			for i in range(1, min([self.coords[0], 7-self.coords[1]]) + 1):
 				moves.append((self.coords[0] - i, self.coords[1] + i))
-				if board[self.coords[0] - i][self.coords[1] + i] != " ":
+				if not board.isSquareEmpty((self.coords[0] - i, self.coords[1] + i)):
 					break
 		else:
 			for i in range(4):
 				for j in range(1, limit+1):
 					move = (self.coords[0]+(possibleDirections[i][0]*j), (self.coords[1]+(possibleDirections[i][1]*j)))
 					moves.append(move)
-					if board[move[0]][move[1]] != " ":
+					if not board.isSquareEmpty((move[0], move[1])):
 						break
 
 		return moves
@@ -114,11 +116,11 @@ class Pawn(Piece):
 	def getMoves(self, board):
 		moves = []
 		oneSquare = (self.coords[0], self.coords[1] + self.direction)
-		if board[oneSquare[0]][oneSquare[1]] == " ":
+		if board.isSquareEmpty((oneSquare[0], oneSquare[1])):
 			moves.append(oneSquare)
-		if board[self.coords[0]-1][self.coords[1]+self.direction] != " ": ## Check if can take diagonally
+		if not board.isSquareEmpty((self.coords[0]-1, self.coords[1]+self.direction)): ## Check if can take diagonally
 			moves.append((self.coords[0]-1, self.coords[1]+self.direction))
-		if board[self.coords[0]+1][self.coords[1]+self.direction] != " ": ## Check if can take diagonally
+		if not board.isSquareEmpty((self.coords[0]+1, self.coords[1]+self.direction)): ## Check if can take diagonally
 			moves.append((self.coords[0]+1, self.coords[1]+self.direction))
 
 		if self.noMoves == 0: ## Check if its the first move, so can move two squares
@@ -171,7 +173,6 @@ class King(Piece):
 	def isInCheck(self, board, pieces):
 		for p in pieces.sprites():
 			for move in p.getMoves(board):
-				#print(p.coords, move)
 				if p.colour != self.colour and self.coords[0] == move[0] and self.coords[1] == move[1]:
 					return True
 		return False
