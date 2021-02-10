@@ -1,4 +1,4 @@
-import pygame, piece
+import pygame, piece, board
 from constants import SCREENWIDTH, SQUAREWIDTH, LIGHTCOLOUR, DARKCOLOUR
 
 screen = pygame.display.set_mode((SCREENWIDTH, SCREENWIDTH))
@@ -34,38 +34,38 @@ piecesGroup.add(piece.Rook("white", [0, 7]),
 				piece.Knight("white", [6, 7]),
 				piece.Rook("white", [7, 7]))
 
-board = [[" " for x in range(9)] for y in range(9)]
-for p in piecesGroup.sprites():
-	board[p.coords[0]][p.coords[1]] = p.piece
+gameboard = board.Board(piecesGroup)
 
 currentPlayer = "white"
 inCheck = False
-
-def movePiece(movingPiece, move):
-	movingPiece.coords[0] = move[0]
-	movingPiece.coords[1] = move[1]
-	movingPiece.rect.x = movingPiece.coords[0] * SQUAREWIDTH
-	movingPiece.rect.y = movingPiece.coords[1] * SQUAREWIDTH
-
-	board[movingPiece.coords[0]][movingPiece.coords[1]] = movingPiece.piece
-	movingPiece.noMoves += 1
-
-def takePiece(movingPiece, targetPiece, move):
-	piecesGroup.remove(targetPiece)
-	movePiece(movingPiece, move)
-
-def resetPiece(movingPiece):
-	movingPiece.rect.x = movingPiece.coords[0] * SQUAREWIDTH
-	movingPiece.rect.y = movingPiece.coords[1] * SQUAREWIDTH
+isMate = False
 
 def checkCheck():
 	for p in piecesGroup.sprites():
 		if p.piece == "King":
 			if p.colour == currentPlayer:
-				return p.isInCheck(board, piecesGroup)
+				return p.isInCheck(gameboard, piecesGroup)
 
+def mateCheck():
+	for p in piecesGroup.sprites():
+		if p.piece == "King":
+			if p.colour == currentPlayer:
+				if p.isInCheck(gameboard, piecesGroup):
+					kingCoords = p.coords[:]
+					possibleMoves = [[-1, -1], [-1, 0], [-1, 1], [1, 0], [1, -1], [0, 1], [1, 1], [0, -1]]
+					for move in possibleMoves:
+						if not gameboard.isSquareEmpty((p.coords[0]+move[0], p.coords[1]+move[1])):
+							gameboard.movePiece(p, (p.coords[0]+move[0], p.coords[1]+move[1]))
+							if not p.isInCheck(gameboard, piecesGroup):
+								gameboard.movePiece(p, kingCoords)
+								return False
+							gameboard.movePiece(p, kingCoords)
+					gameboard.movePiece(p, kingCoords)
+					return True
 
 while playing:
+	inCheck = checkCheck()
+
 	for event in pygame.event.get():
 		if event.type == pygame.QUIT:
 			playing = False
@@ -81,69 +81,67 @@ while playing:
 					poss.rect.y = mousey - SQUAREWIDTH / 2
 		elif event.type == pygame.MOUSEBUTTONUP:
 			mousex, mousey = pygame.mouse.get_pos()
-			for poss in piecesGroup.sprites():
+			for poss in gameboard.piecesGroup.sprites():
 				if poss.active:
 					moveX = mousex // SQUAREWIDTH
 					moveY = mousey // SQUAREWIDTH
-					if (mousex // SQUAREWIDTH, mousey // SQUAREWIDTH) in poss.getMoves(board) and poss.colour == currentPlayer and not inCheck: ## Move a piece
+					if (mousex // SQUAREWIDTH, mousey // SQUAREWIDTH) in poss.getMoves(gameboard) and poss.colour == currentPlayer and not inCheck: ## Move a piece
 						originalCoords = [poss.coords[0], poss.coords[1]]
-						board[poss.coords[0]][poss.coords[1]] = " "
 
-						if board[moveX][moveY] != " ":
+						taken = False
+						temp = ""
+						if not gameboard.isSquareEmpty((moveX, moveY)):
 							for target in piecesGroup.sprites():
 								if target.coords[0] == moveX and target.coords[1] == moveY:
 									if target.colour != poss.colour:
-										takePiece(poss, target, (moveX, moveY))
+										taken = True
+										temp = target
+										gameboard.takePiece(poss, target, (moveX, moveY))
 									else:
-										resetPiece(poss)
+										poss.resetPiece()
 						else:
-							movePiece(poss, (moveX, moveY))
+							gameboard.movePiece(poss, (moveX, moveY))
 
-						if checkCheck(): ## Check if the player has moved into check
-							board[poss.coords[0]][poss.coords[1]] = " "
-							movePiece(poss, originalCoords)
-						else: ## i.e. the move is legal
-							## Check for pawn promotion
-							if poss.piece == "Pawn" and poss.coords[1] in [0,7]:
-								piecesGroup.remove(poss)
-								piecesGroup.add(piece.Queen(poss.colour, [poss.coords[0], poss.coords[1]]))
+						
+						## Check for pawn promotion
+						if poss.piece == "Pawn" and poss.coords[1] in [0,7]:
+							gameboard.piecesGroup.remove(poss)
+							gameboard.piecesGroup.add(piece.Queen(poss.colour, [poss.coords[0], poss.coords[1]]))
 
-								board[poss.coords[0]][poss.coords[1]] = "queen"
+						currentPlayer = "black" if currentPlayer == "white" else "white"
 
-							currentPlayer = "black" if currentPlayer == "white" else "white"
-
-							inCheck = checkCheck()
+						isMate = mateCheck()
 					elif inCheck:
 						currentCoords = (poss.coords[0], poss.coords[1])
 
-						if board[moveX][moveY] != " ":
-							for target in piecesGroup.sprites():
+						if not gameboard.isSquareEmpty((moveX, moveY)):
+							for target in gameboard.piecesGroup.sprites():
 								if target.coords[0] == moveX and target.coords[1] == moveY:
 									if target.colour != poss.colour:
 										temp = target
 										piecesGroup.remove(target)
+										gameboard.movePiece(poss, (moveX, moveY))
 										if not checkCheck():
-											takePiece(poss, target, (moveX, moveY))
+											gameboard.takePiece(poss, target, (moveX, moveY))
 											currentPlayer = "black" if currentPlayer == "white" else "white"
 										else:
-											piecesGroup.add(temp)
+											gameboard.movePiece(poss, currentCoords)
+											gameboard.piecesGroup.add(temp)
 									else:
-										resetPiece(poss)
+										poss.resetPiece()
 						else:
-							board[poss.coords[0]][poss.coords[1]] = " "
-							movePiece(poss, (moveX, moveY))
+							gameboard.movePiece(poss, (moveX, moveY))
 							if checkCheck():
-								board[poss.coords[0]][poss.coords[1]] = " "
-								movePiece(poss, currentCoords)
+								gameboard.movePiece(poss, currentCoords)
 							else:
 								currentPlayer = "black" if currentPlayer == "white" else "white"
-								inCheck = checkCheck()
+						isMate = mateCheck()
 					else:
-						resetPiece(poss)
+						poss.resetPiece()
 
 	screen.fill((255, 255, 255))
 
-	## Draw the chess board
+	## Draw the chess gameboard
 	## Fill the background dark
 	screen.fill(DARKCOLOUR)
 	## Draw the light
@@ -154,13 +152,15 @@ while playing:
 
 	for p in piecesGroup.sprites():
 		if p.active:
-			moves = p.getMoves(board)
-	piecesGroup.draw(screen)
+			moves = p.getMoves(gameboard)
+	gameboard.piecesGroup.draw(screen)
 
 	if inCheck:
 		pygame.draw.rect(screen, (0, 0, 0) if currentPlayer == "black" else (255, 255, 255), (0, 0, 25, 25))
-	#for m in moves:
-	#	pygame.draw.rect(screen, (0, 0, 255), (m[0]*SQUAREWIDTH + SQUAREWIDTH/2, m[1]*SQUAREWIDTH + SQUAREWIDTH/2, 10, 10))
+	if isMate:
+		pygame.draw.rect(screen, (255, 0, 0), (0, 0, 30, 30))
+	for m in moves:
+		pygame.draw.rect(screen, (0, 0, 255), (m[0]*SQUAREWIDTH + SQUAREWIDTH/2, m[1]*SQUAREWIDTH + SQUAREWIDTH/2, 10, 10))
 	pygame.display.flip()
 	clock.tick(60)
 
