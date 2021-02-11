@@ -169,10 +169,3 @@ class King(Piece):
 
 	def getMoves(self, board):
 		return self.getStraightMoves(board, limit=1) + self.getDiagonalMoves(board, limit=1)
-
-	def isInCheck(self, board, pieces):
-		for p in pieces.sprites():
-			for move in p.getMoves(board):
-				if p.colour != self.colour and self.coords[0] == move[0] and self.coords[1] == move[1]:
-					return True
-		return False

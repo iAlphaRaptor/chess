@@ -1,4 +1,4 @@
-import pygame, piece, board
+import pygame, piece, board, random
 from constants import SCREENWIDTH, SQUAREWIDTH, LIGHTCOLOUR, DARKCOLOUR
 
 screen = pygame.display.set_mode((SCREENWIDTH, SCREENWIDTH))
@@ -10,28 +10,28 @@ moves = []
 
 piecesGroup = pygame.sprite.Group()
 ## Add Pawns
-for i in range(0, 8):
+for i in range(0, 2):
 	piecesGroup.add(piece.Pawn("white", [i, 6]),
 					piece.Pawn("black", [i, 1]))
 
 ## Add black pieces
 piecesGroup.add(piece.Rook("black", [0, 0]),
-				piece.Knight("black", [1, 0]),
-				piece.Bishop("black", [2, 0]),
+				#piece.Knight("black", [1, 0]),
+				#piece.Bishop("black", [2, 0]),
 				piece.Queen("black", [3, 0]), 
 				piece.King("black", [4, 0]),
-				piece.Bishop("black", [5, 0]),
-				piece.Knight("black", [6, 0]),
+				#piece.Bishop("black", [5, 0]),
+				#piece.Knight("black", [6, 0]),
 				piece.Rook("black", [7, 0]))
 
 ## Add white pieces
 piecesGroup.add(piece.Rook("white", [0, 7]),
-				piece.Knight("white", [1, 7]),
-				piece.Bishop("white", [2, 7]),
+				#piece.Knight("white", [1, 7]),
+				#piece.Bishop("white", [2, 7]),
 				piece.Queen("white", [3, 7]), 
 				piece.King("white", [4, 7]),
-				piece.Bishop("white", [5, 7]),
-				piece.Knight("white", [6, 7]),
+				#piece.Bishop("white", [5, 7]),
+				#piece.Knight("white", [6, 7]),
 				piece.Rook("white", [7, 7]))
 
 gameboard = board.Board(piecesGroup)
@@ -40,31 +40,8 @@ currentPlayer = "white"
 inCheck = False
 isMate = False
 
-def checkCheck():
-	for p in piecesGroup.sprites():
-		if p.piece == "King":
-			if p.colour == currentPlayer:
-				return p.isInCheck(gameboard, piecesGroup)
-
-def mateCheck():
-	for p in piecesGroup.sprites():
-		if p.piece == "King":
-			if p.colour == currentPlayer:
-				if p.isInCheck(gameboard, piecesGroup):
-					kingCoords = p.coords[:]
-					possibleMoves = [[-1, -1], [-1, 0], [-1, 1], [1, 0], [1, -1], [0, 1], [1, 1], [0, -1]]
-					for move in possibleMoves:
-						if not gameboard.isSquareEmpty((p.coords[0]+move[0], p.coords[1]+move[1])):
-							gameboard.movePiece(p, (p.coords[0]+move[0], p.coords[1]+move[1]))
-							if not p.isInCheck(gameboard, piecesGroup):
-								gameboard.movePiece(p, kingCoords)
-								return False
-							gameboard.movePiece(p, kingCoords)
-					gameboard.movePiece(p, kingCoords)
-					return True
-
 while playing:
-	inCheck = checkCheck()
+	moved = False
 
 	for event in pygame.event.get():
 		if event.type == pygame.QUIT:
@@ -102,15 +79,20 @@ while playing:
 						else:
 							gameboard.movePiece(poss, (moveX, moveY))
 
-						
-						## Check for pawn promotion
-						if poss.piece == "Pawn" and poss.coords[1] in [0,7]:
-							gameboard.piecesGroup.remove(poss)
-							gameboard.piecesGroup.add(piece.Queen(poss.colour, [poss.coords[0], poss.coords[1]]))
+						if gameboard.checkCheck(currentPlayer): ## Check if the move is legal
+							if not gameboard.isSquareEmpty((moveX, moveY)):
+								gameboard.piecesGroup.add(temp)
+								gameboard.movePiece(poss, originalCoords)
+							else:
+								gameboard.movePiece(poss, originalCoords)
+						else:
+							## Check for pawn promotion
+							if poss.piece == "Pawn" and poss.coords[1] in [0,7]:
+								gameboard.piecesGroup.remove(poss)
+								gameboard.piecesGroup.add(piece.Queen(poss.colour, [poss.coords[0], poss.coords[1]]))
 
-						currentPlayer = "black" if currentPlayer == "white" else "white"
-
-						isMate = mateCheck()
+							moved = False
+							currentPlayer = "black" if currentPlayer == "white" else "white"
 					elif inCheck:
 						currentCoords = (poss.coords[0], poss.coords[1])
 
@@ -121,8 +103,9 @@ while playing:
 										temp = target
 										piecesGroup.remove(target)
 										gameboard.movePiece(poss, (moveX, moveY))
-										if not checkCheck():
+										if not gameboard.checkCheck(currentPlayer):
 											gameboard.takePiece(poss, target, (moveX, moveY))
+											moved = False
 											currentPlayer = "black" if currentPlayer == "white" else "white"
 										else:
 											gameboard.movePiece(poss, currentCoords)
@@ -131,13 +114,17 @@ while playing:
 										poss.resetPiece()
 						else:
 							gameboard.movePiece(poss, (moveX, moveY))
-							if checkCheck():
+							if gameboard.checkCheck(currentPlayer):
 								gameboard.movePiece(poss, currentCoords)
 							else:
+								moved = False
 								currentPlayer = "black" if currentPlayer == "white" else "white"
-						isMate = mateCheck()
 					else:
 						poss.resetPiece()
+
+	if moved:
+		inCheck = gameboard.checkCheck(currentPlayer)
+		isMate = gameboard.mateCheck(currentPlayer)
 
 	screen.fill((255, 255, 255))
 
