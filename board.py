@@ -1,4 +1,4 @@
-import pygame
+import pygame, move
 from constants import SCREENWIDTH, SQUAREWIDTH, LIGHTCOLOUR, DARKCOLOUR
 pygame.init()
 
@@ -23,52 +23,67 @@ class Board:
 				return False
 		return True
 
-	def movePiece(self, piece, dest):
-		piece.coords[0] = dest[0]
-		piece.coords[1] = dest[1]
+	def movePiece(self, piece, moveObj):
+		piece.coords[0] = moveObj.coords[0]
+		piece.coords[1] = moveObj.coords[1]
 		piece.rect.x = piece.coords[0] * SQUAREWIDTH
 		piece.rect.y = piece.coords[1] * SQUAREWIDTH
 
+		if moveObj.specialMove == "Castle":
+			self.movePiece(moveObj.thirdParty[0], move.Move(moveObj.thirdParty[1]))
+		elif moveObj.specialMove == "EP":
+			self.takePiece(piece, moveObj.thirdParty, moveObj, EP=True)
+
 		piece.noMoves += 1
 
-	def takePiece(self, movingPiece, targetPiece, move):
+	def takePiece(self, movingPiece, targetPiece, moveObj, EP=False):
 		self.piecesGroup.remove(targetPiece)
-		self.movePiece(movingPiece, move)
+		if not EP:
+			self.movePiece(movingPiece, moveObj)
 
 	def checkCheck(self, currentPlayer):
 		king = self.getCurrentKing(currentPlayer)
 
 		for piece in self.piecesGroup.sprites():
-			pieceMoves = piece.getMoves(self)
-			for move in pieceMoves:
-				if list(move) == list(king.coords) and piece.colour != currentPlayer:
+			if piece.piece == "King":
+				pieceMoves = piece.getMoves(self, ignoreCastles=True)
+			else:
+				pieceMoves = piece.getMoves(self)
+
+			for possibleMove in pieceMoves:
+				if list(possibleMove.coords) == list(king.coords) and piece.colour != currentPlayer:
 					return True
 		return False
 
 	def mateCheck(self, currentPlayer):
 		if self.checkCheck(currentPlayer):
 			for piece in self.piecesGroup.sprites():
-				pieceCoords = piece.coords[:]
+				if piece.colour == currentPlayer:
+					pieceCoords = piece.coords[:]
 
-				for move in piece.getMoves(self):
-					nextMove = (piece.coords[0]+move[0], piece.coords[1]+move[1])
-					if self.isSquareEmpty(nextMove):
-						self.movePiece(piece, nextMove)
-						if not self.checkCheck(currentPlayer):
-							self.movePiece(piece, pieceCoords)
-							return False
-						self.movePiece(piece, pieceCoords)
-					else:
-						targetPiece = self.getPiece(nextMove)
-						temp = targetPiece
+					for possibleMove in piece.getMoves(self):
+						nextMove = possibleMove.coords
+						if nextMove[0] > 0 and nextMove[1] > 0:
+							if self.isSquareEmpty(nextMove):
+								self.movePiece(piece, move.Move(nextMove))
+								if not self.checkCheck(currentPlayer):
+									print("No Take", piece.piece, piece.colour, nextMove)
+									self.movePiece(piece, move.Move(pieceCoords))
+									return False
+								self.movePiece(piece, move.Move(pieceCoords))
+							else:
+								targetPiece = self.getPiece(nextMove)
+								if targetPiece.colour != piece.colour:
+									temp = targetPiece
 
-						self.takePiece(piece, targetPiece, nextMove)
-						if not self.checkCheck(currentPlayer):
-							self.piecesGroup.add(temp)
-							self.movePiece(piece, pieceCoords)
-							return False
-						self.piecesGroup.add(temp)
-						self.movePiece(piece, pieceCoords)
-				self.movePiece(piece, pieceCoords)
+									self.takePiece(piece, targetPiece, move.Move(nextMove))
+									if not self.checkCheck(currentPlayer):
+										print("Take", piece.piece, piece.colour, nextMove)
+										self.piecesGroup.add(temp)
+										self.movePiece(piece, move.Move(pieceCoords))
+										return False
+									self.piecesGroup.add(temp)
+								self.movePiece(piece, move.Move(pieceCoords))
+					self.movePiece(piece, move.Move(pieceCoords))
 			return True
 		return False
